@@ -1,0 +1,16 @@
+__pycache__/*
+.DS_Store
+
+# cookie profile
+*User Data/
+
+# chrome driver
+chromedriver-mac-arm64/
+
+*.png
+*.csv
+*.json
+*.ipynb
+*.txt
+*.xlsx
+!input.csv
