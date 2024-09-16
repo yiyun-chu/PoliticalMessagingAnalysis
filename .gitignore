@@ -13,4 +13,5 @@ chromedriver-mac-arm64/
 *.ipynb
 *.txt
 *.xlsx
+*.js
 !input.csv
