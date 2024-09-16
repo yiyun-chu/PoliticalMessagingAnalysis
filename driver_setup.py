@@ -11,19 +11,21 @@ import pandas as pd
 from urllib.parse import urlparse
 
 data_list = []
-# Function to setup and return a Selenium WebDriver instance
 
+# Function to setup and return a Selenium WebDriver instance
 def create_driver():
     chrome_options = Options()
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-    user_data_dir = r"C:\Users\h p\AppData\Local\Google\Chrome\User Data"
-    profile = "Profile 2"
+    user_data_dir = r"C:\Users\heinz_3\AppData\Local\Google\Chrome\User Data"
+    profile = "Profile 1"
     chrome_options.add_argument(f"user-data-dir={user_data_dir}")
     chrome_options.add_argument(f"profile-directory={profile}")
-    
+
+    chrome_options.binary_location = "C:\Program Files\Google\Chrome\Application\chrome.exe"  # Update this path if needed
+
     # driver = webdriver.Chrome(service=ChromeService(), options=chrome_options)
-    chrome_service = ChromeService('/Users/athena/Desktop/Research/election/chromedriver-mac-arm64/chromedriver')
+    chrome_service = ChromeService(r'C:\Users\heinz_3\Downloads\election\chromedriver.exe')
     driver = webdriver.Chrome(service=chrome_service, options=chrome_options)
     return driver

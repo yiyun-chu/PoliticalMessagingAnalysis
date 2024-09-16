@@ -1,11 +1,13 @@
-__pycache__/*
+__pycache__*
 .DS_Store
+after_submit_screenshot*
 
 # cookie profile
 *User Data/
 
 # chrome driver
-chromedriver-mac-arm64/
+chromedriver-mac-arm64/ 
+chromedriver.exe
 
 *.png
 *.csv
