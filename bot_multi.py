@@ -17,11 +17,11 @@ from selenium.common.exceptions import TimeoutException
 
 
 if platform.system() == "Windows":
-    save_dir = r"C:\Users\heinz_3\Dropbox\after_submit_screenshot_test"
-    log_file = r"C:\Users\heinz_3\Dropbox\log.csv"
+    save_dir = r"C:\Users\Heinz1\Dropbox\after_submit_screenshot_swing"
+    log_file = r"C:\Users\Heinz1\Dropbox\log_swing.csv"
 else:
-    save_dir = r"/Users/athena/Dropbox/after_submit_screenshot_test"
-    log_file = r"/Users/athena/Dropbox/log.csv"
+    save_dir = r"/Users/athena/Dropbox/after_submit_screenshot_swing"
+    log_file = r"/Users/athena/Dropbox/log_swing.csv"
 
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
@@ -34,7 +34,7 @@ with open('login.txt', 'r') as login_file:
     username = login_file.readline().strip()
     password = login_file.readline().strip()
 
-df = pd.read_csv("test.csv")
+df = pd.read_csv("test_full.csv")
 login_vpn(username, password)
 last_vpn = None
 
@@ -617,51 +617,75 @@ def process_row(row, profile_path):
     finally:
         driver.quit()
 
-# for i in {01..10}; do cp "Profile 12" "dup$i"; done
-# for ($i=1; $i -le 10; $i++) { $suffix = "{0:D2}" -f $i; Copy-Item "Profile 12" "dup$suffix" }
+# def detect_inactivity(driver, timeout=600):
+#     """
+#     Detects if the page has remained inactive for the specified timeout period.
+#     Returns True if the page is inactive, otherwise False.
+#     """
+#     try:
+#         initial_state = driver.execute_script("return document.readyState")
+#         time.sleep(timeout)
+#         new_state = driver.execute_script("return document.readyState")
 
-def detect_inactivity(driver, timeout=10):
-    """
-    Detects if the page has remained inactive for the specified timeout period.
-    Returns True if the page is inactive, otherwise False.
-    """
-    try:
-        initial_state = driver.execute_script("return document.readyState")
-        time.sleep(timeout)
-        new_state = driver.execute_script("return document.readyState")
-
-        if initial_state == new_state == "complete":
-            return True
-        else:
-            return False
-    except WebDriverException as e:
-        print(f"Error detecting inactivity: {e}")
-        return True  
+#         if initial_state == new_state == "complete":
+#             return True
+#         else:
+#             return False
+#     except WebDriverException as e:
+#         print(f"Error detecting inactivity: {e}")
+#         return True  
     
-def process_row_with_inactivity_check(row, profile_path):
-    url = row['Url']
-    profile_id = row['profile_id']
+# def process_row_with_inactivity_check(row, profile_path):
+#     url = row['Url']
+#     profile_id = row['profile_id']
 
-    driver = create_driver(profile_path)
-    try:
-        print(f"Opening: {url} for profile_id: {profile_id}")
-        driver.get(url)
-        time.sleep(2)
+#     driver = create_driver(profile_path)
+#     try:
+#         print(f"Opening: {url} for profile_id: {profile_id}")
+#         driver.get(url)
+#         time.sleep(2)
         
-        # Detect inactivity for 30 seconds
-        if detect_inactivity(driver, timeout=30):
-            print(f"Inactivity detected for profile_id: {profile_id}. Moving to next row.")
-            return (profile_id, None, f"Inactivity detected for profile_id: {profile_id}.")  # Log inactivity and move to the next row
+#         # Detect inactivity for 300 seconds
+#         # if detect_inactivity(driver, timeout=300):
+#         #     print(f"Inactivity detected for profile_id: {profile_id}. Moving to next row.")
+#         #     return (profile_id, None, f"Inactivity detected for profile_id: {profile_id}.")  # Log inactivity and move to the next row
         
-        # If not inactive, continue with form processing
-        return process_row(row, profile_path)
+#         # If not inactive, continue with form processing
+#         return process_row(row, profile_path)
     
-    except WebDriverException as e:
-        print(f"Error processing profile_id: {profile_id}: {e}")
-        return (profile_id, None, f"Error processing profile_id: {profile_id}: {e}")  # Log failure with profile_id
+#     except WebDriverException as e:
+#         print(f"Error processing profile_id: {profile_id}: {e}")
+#         return (profile_id, None, f"Error processing profile_id: {profile_id}: {e}")  # Log failure with profile_id
     
-    finally:
-        driver.quit()
+#     finally:
+#         driver.quit()
+
+# def process_vpn_region(region_df, profile_paths):
+#     pia_vpn = region_df['pia_vpn'].iloc[0]
+#     vpn_ip = change_vpn(pia_vpn)
+#     if not vpn_ip:
+#         print(f"Failed to connect to VPN for {pia_vpn}")
+#         return []
+
+#     threads = []
+#     results = []
+
+#     # Thread target function for each profile and row
+#     def thread_target(profile_path, row):
+#         result = process_row_with_inactivity_check(row, profile_path)  # Use the new inactivity check version
+#         results.append(result)
+
+#     # Start threads for each profile and row
+#     for (_, row), profile_path in zip(region_df.iterrows(), profile_paths):
+#         thread = threading.Thread(target=thread_target, args=(profile_path, row))
+#         threads.append(thread)
+#         thread.start()
+
+#     # Wait for all threads to complete
+#     for thread in threads:
+#         thread.join()
+
+#     return results
 
 def process_vpn_region(region_df, profile_paths):
     pia_vpn = region_df['pia_vpn'].iloc[0]
@@ -672,14 +696,17 @@ def process_vpn_region(region_df, profile_paths):
 
     threads = []
     results = []
-
+    
     # Thread target function for each profile and row
     def thread_target(profile_path, row):
-        result = process_row_with_inactivity_check(row, profile_path)  # Use the new inactivity check version
+        result = process_row(row, profile_path)  # Use the new inactivity check version
         results.append(result)
 
+    # Limit the number of rows to the number of available profiles
+    rows_to_process = region_df.head(len(profile_paths))  # Take only as many rows as available profiles
+
     # Start threads for each profile and row
-    for (_, row), profile_path in zip(region_df.iterrows(), profile_paths):
+    for (_, row), profile_path in zip(rows_to_process.iterrows(), profile_paths):
         thread = threading.Thread(target=thread_target, args=(profile_path, row))
         threads.append(thread)
         thread.start()
@@ -689,34 +716,37 @@ def process_vpn_region(region_df, profile_paths):
         thread.join()
 
     return results
-    
+
 def run_vpn_region_based():
     grouped = df.groupby('pia_vpn')
     
     all_results = []
     
-    profiles = [
-    "/Users/athena/Library/Application Support/Google/Chrome/dup01",
-    "/Users/athena/Library/Application Support/Google/Chrome/dup02",
-    "/Users/athena/Library/Application Support/Google/Chrome/dup03",
-    "/Users/athena/Library/Application Support/Google/Chrome/dup04",
-    "/Users/athena/Library/Application Support/Google/Chrome/dup05",
-    "/Users/athena/Library/Application Support/Google/Chrome/dup06",
-    "/Users/athena/Library/Application Support/Google/Chrome/dup07",
-    "/Users/athena/Library/Application Support/Google/Chrome/dup08",
-    "/Users/athena/Library/Application Support/Google/Chrome/dup09",
-    "/Users/athena/Library/Application Support/Google/Chrome/dup10",
-    "/Users/athena/Library/Application Support/Google/Chrome/dup11",
-    "/Users/athena/Library/Application Support/Google/Chrome/dup12",
-    "/Users/athena/Library/Application Support/Google/Chrome/dup13",
-    "/Users/athena/Library/Application Support/Google/Chrome/dup14",
-    "/Users/athena/Library/Application Support/Google/Chrome/dup15",
-    "/Users/athena/Library/Application Support/Google/Chrome/dup16",
-    "/Users/athena/Library/Application Support/Google/Chrome/dup17",
-    "/Users/athena/Library/Application Support/Google/Chrome/dup18",
-    "/Users/athena/Library/Application Support/Google/Chrome/dup19",
-    "/Users/athena/Library/Application Support/Google/Chrome/dup20"
-    ]
+    profiles = [r'C:\Users\Heinz1\AppData\Local\Google\Chrome\User Data\test1',
+                r'C:\Users\Heinz1\AppData\Local\Google\Chrome\User Data\test2']
+    
+    # profiles = [
+    # "C:\\Users\\Heinz1\\AppData\\Local\\Google\\Chrome\\User Data\\swing01",
+    # "C:\\Users\\Heinz1\\AppData\\Local\\Google\\Chrome\\User Data\\swing02",
+    # "C:\\Users\\Heinz1\\AppData\\Local\\Google\\Chrome\\User Data\\swing03",
+    # "C:\\Users\\Heinz1\\AppData\\Local\\Google\\Chrome\\User Data\\swing04",
+    # "C:\\Users\\Heinz1\\AppData\\Local\\Google\\Chrome\\User Data\\swing05",
+    # "C:\\Users\\Heinz1\\AppData\\Local\\Google\\Chrome\\User Data\\swing06",
+    # "C:\\Users\\Heinz1\\AppData\\Local\\Google\\Chrome\\User Data\\swing07",
+    # "C:\\Users\\Heinz1\\AppData\\Local\\Google\\Chrome\\User Data\\swing08",
+    # "C:\\Users\\Heinz1\\AppData\\Local\\Google\\Chrome\\User Data\\swing09",
+    # "C:\\Users\\Heinz1\\AppData\\Local\\Google\\Chrome\\User Data\\swing10",
+    # "C:\\Users\\Heinz1\\AppData\\Local\\Google\\Chrome\\User Data\\swing11",
+    # "C:\\Users\\Heinz1\\AppData\\Local\\Google\\Chrome\\User Data\\swing12",
+    # "C:\\Users\\Heinz1\\AppData\\Local\\Google\\Chrome\\User Data\\swing13",
+    # "C:\\Users\\Heinz1\\AppData\\Local\\Google\\Chrome\\User Data\\swing14",
+    # "C:\\Users\\Heinz1\\AppData\\Local\\Google\\Chrome\\User Data\\swing15",
+    # "C:\\Users\\Heinz1\\AppData\\Local\\Google\\Chrome\\User Data\\swing16",
+    # "C:\\Users\\Heinz1\\AppData\\Local\\Google\\Chrome\\User Data\\swing17",
+    # "C:\\Users\\Heinz1\\AppData\\Local\\Google\\Chrome\\User Data\\swing18",
+    # "C:\\Users\\Heinz1\\AppData\\Local\\Google\\Chrome\\User Data\\swing19",
+    # "C:\\Users\\Heinz1\\AppData\\Local\\Google\\Chrome\\User Data\\swing20"
+    # ]
     
     for pia_vpn, group in grouped:
         print(f"Processing region: {pia_vpn}")
