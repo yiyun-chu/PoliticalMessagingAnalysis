@@ -1,7 +1,11 @@
 import subprocess
 import time
+import platform
 
-PIA_PATH = r'C:\Program Files\Private Internet Access\piactl.exe'
+if platform.system() == "Windows":
+    PIA_PATH = r'C:\Program Files\Private Internet Access\piactl.exe'
+else:
+    PIA_PATH = '/Applications/Private Internet Access.app/Contents/MacOS/piactl'
 
 # Log in to the VPN using username and password
 def login_vpn(username, password):

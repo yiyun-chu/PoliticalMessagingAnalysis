@@ -8,6 +8,7 @@ after_submit_screenshot*
 # chrome driver
 chromedriver-mac-arm64/ 
 chromedriver.exe
+chromedriver
 
 *.png
 *.csv
@@ -19,3 +20,4 @@ chromedriver.exe
 !input.csv
 !test_full.csv
 !test.csv
+!login.txt

@@ -9,7 +9,10 @@ from bs4 import BeautifulSoup
 import json
 import os
 
+import concurrent.futures
+from selenium.common.exceptions import WebDriverException
 from vpn_automate import change_vpn, login_vpn
+
 save_dir = r"C:\Users\heinz_3\Dropbox\after_submit_screenshot"
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
@@ -23,7 +26,6 @@ with open('login.txt', 'r') as login_file:
 
 # Log in to the VPN
 login_vpn(username, password)
-
 last_vpn = None
 
 for i in range(len(df['Url'])):
