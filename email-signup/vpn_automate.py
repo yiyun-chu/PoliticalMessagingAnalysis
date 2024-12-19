@@ -3,9 +3,9 @@ import time
 import platform
 
 if platform.system() == "Windows":
-    PIA_PATH = r'C:\Program Files\Private Internet Access\piactl.exe'
+    PIA_PATH = 'YOUR_PATH_TO_PIA_EXE'
 else:
-    PIA_PATH = '/Applications/Private Internet Access.app/Contents/MacOS/piactl'
+    PIA_PATH = 'YOUR_PATH_TO_PIA_EXE_MAC'
 
 # Log in
 def login_vpn(username, password):
