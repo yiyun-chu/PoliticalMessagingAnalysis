@@ -13,12 +13,6 @@ def create_driver(profile_path):
     chrome_service = Service(executable_path = '/Users/athena/Desktop/Research/election/chromedriver-mac-arm64/chromedriver')
     return webdriver.Chrome(service=chrome_service, options=chrome_options) #webdriver.Chrome(options=chrome_service)
 
-# Define profiles and URLs
-# profiles = [
-#     "/Users/athena/Library/Application Support/Google/Chrome/Profile 12",
-#     "/Users/athena/Library/Application Support/Google/Chrome/profile100",
-# ]
-
 profiles = [
     "/Users/athena/Library/Application Support/Google/Chrome/dup01",
     "/Users/athena/Library/Application Support/Google/Chrome/dup02",

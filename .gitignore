@@ -16,8 +16,4 @@ chromedriver
 *.ipynb
 *.txt
 *.xlsx
-*.js
-!input.csv
-!test_full.csv
-!test.csv
-!login.txt
+*.json

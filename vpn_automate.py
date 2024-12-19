@@ -7,7 +7,7 @@ if platform.system() == "Windows":
 else:
     PIA_PATH = '/Applications/Private Internet Access.app/Contents/MacOS/piactl'
 
-# Log in to the VPN using username and password
+# Log in
 def login_vpn(username, password):
     login_command = [PIA_PATH, 'login', '--username', username, '--password', password]
     result = subprocess.run(login_command, capture_output=True, text=True)
@@ -29,27 +29,27 @@ def get_vpn_ip():
     else:
         return "Unable to retrieve IP address"
     
-# Change VPN based on the pia_vpn value from CSV
+# Change VPN based on the location
 def change_vpn(pia_vpn):
     if check_vpn_status() != 'Connected' or get_vpn_ip() != pia_vpn:
-        # Step 1: Set the region
+        
+        # Set the region
         set_region_command = [PIA_PATH, 'set', 'region', pia_vpn]
         subprocess.run(set_region_command)
         print(f"Region set to {pia_vpn}.")
         time.sleep(5)
 
-        # Step 2: Connect to the VPN
+        # Connect to the VPN
         connect_command = [PIA_PATH, 'connect']
         subprocess.run(connect_command)
         print(f"Connecting to VPN...")
         time.sleep(5)
 
-        # Wait for VPN to connect
         attempts = 0
-        max_attempts = 20  # Increased the max attempts
+        max_attempts = 20  
         while check_vpn_status() != 'Connected' and attempts < max_attempts:
             print("Waiting for VPN to connect...")
-            time.sleep(5)  # Increased the wait time to 5 seconds
+            time.sleep(5)
             attempts += 1
 
         if check_vpn_status() == 'Connected':
