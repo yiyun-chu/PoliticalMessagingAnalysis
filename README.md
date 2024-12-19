@@ -4,7 +4,7 @@ This is a preliminary release of the code and data associated with the research 
 
 **Authors**: Yi-Yun Chu, Uttara M Ananthakrishnan, Ramayya Krishnan, and Ananya Sen
 
-**Website**: https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5057627
+**Paper Link**: https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5057627
 
 ---
 
