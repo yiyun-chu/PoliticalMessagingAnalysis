@@ -35,5 +35,4 @@ The dataset is available upon request [here](https://forms.gle/QREVy9qG8G34x8X1A
 
 If you use this code or data in your research, please cite:
 
-> Yi-Yun Chu, Uttara M Ananthakrishnan, Ramayya Krishnan, and Ananya Sen.  
-> **"A Data-Driven Assessment of Political Messaging: Experimental Evidence from the 2024 US Elections."** Available at SSRN 5057627 (2024).
+> Yi-Yun Chu, Uttara M Ananthakrishnan, Ramayya Krishnan, and Ananya Sen. A Data-Driven Assessment of Political Messaging: Experimental Evidence from the 2024 US Elections. Available at SSRN 5057627 (2024).
