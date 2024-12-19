@@ -3,9 +3,9 @@ import time
 import platform
 
 if platform.system() == "Windows":
-    PIA_PATH = 'YOUR_PATH_TO_PIA_EXE'
+    PIA_PATH = 'YOUR_PATH_TO_PIA'
 else:
-    PIA_PATH = 'YOUR_PATH_TO_PIA_EXE_MAC'
+    PIA_PATH = 'YOUR_PATH_TO_PIA_MAC'
 
 # Log in
 def login_vpn(username, password):
