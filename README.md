@@ -10,7 +10,7 @@ This is a preliminary release of the code and data associated with the research 
 
 ## Overview
 
-This repository contains the code and methodologies used to sign up for and interact with political campaigns during the 2024 U.S. election cycle. It provides researchers with tools to investigate how political candidates personalize email content. The repository is organized into the following components:
+This repository contains the code and methods used to sign up for and interact with political campaigns during the 2024 U.S. election cycle. It provides researchers with tools to investigate how political candidates personalize email content. The repository is organized into the following components:
 
 - **`email-signup/`**: Contains tools and scripts for automating email list signups from political campaign websites.
   - **`signup_multithread.py`**: Executes multithreaded email signups to collect emails from various campaign websites.
