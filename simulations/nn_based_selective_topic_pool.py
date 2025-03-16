@@ -1,5 +1,11 @@
 import numpy as np
-from scipy.stats import beta
+from scipy.stats import beta, wasserstein_distance
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from scipy.special import logsumexp
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # ---------------------------
 # Generate Closed Beta Distributions
@@ -8,81 +14,17 @@ def generate_closed_beta_distributions(num_distributions=26, range_start=0, rang
     distributions = []
     for i in range(num_distributions):
         alpha = 1.6 + (i * 0.2)
-        beta_param = 5.2 - (i * 0.2)
-        beta_param = max(beta_param, 2)
-
+        beta_param = max(5.2 - (i * 0.2), 2)
         x = np.linspace(0, 1, 100)
         y = beta.pdf(x, alpha, beta_param)
         x_scaled = x * (range_end - range_start) + range_start
-
         distributions.append((x_scaled, y, alpha, beta_param))
     return distributions
 
 distributions = generate_closed_beta_distributions()
 
 # ---------------------------
-# Define Topic Pools Based on Engagement Scores
-# ---------------------------
-def define_topic_pools(topic_engagement_dict, low_threshold=0.3, high_threshold=0.7):
-    """
-    Partition topics into low, mid, and high engagement pools based on their scores.
-    
-    Parameters:
-        topic_engagement_dict: Dictionary mapping topic to its engagement score.
-        low_threshold: Topics with scores below this value are in the low pool.
-        high_threshold: Topics with scores >= this value are in the high pool.
-    
-    Returns:
-        Dictionary with keys "low", "mid", "high" mapping to lists of topics.
-    """
-    low_pool = [topic for topic, score in topic_engagement_dict.items() if score < low_threshold]
-    mid_pool = [topic for topic, score in topic_engagement_dict.items() if low_threshold <= score < high_threshold]
-    high_pool = [topic for topic, score in topic_engagement_dict.items() if score >= high_threshold]
-    return {"low": low_pool, "mid": mid_pool, "high": high_pool}
-
-
-topic_engagement_dict = {
-    # Low Engagement (0.3 or below)
-    "Healthcare": 0.25,
-    "Childcare": 0.30,
-    "Gun Control": 0.20,
-    "Housing Costs": 0.28,
-    "Food Insecurity": 0.22,
-    "Immigration": 0.27,
-    "Reproductive Rights": 0.26,
-    "Corrupt Forces": 0.29,
-    "Tax Policy": 0.30,
-    "LGBTQ Rights": 0.23,
-
-    # Medium Engagement (Between 0.31 - 0.69)
-    "Education": 0.35,
-    "Environment": 0.55,
-    "Misinformation": 0.50,
-    "Social Security": 0.40,
-    "Rural Broadband": 0.60,
-    "Dark Money": 0.45,
-    "Public Safety": 0.65,
-    "Minimum Wage": 0.48,
-    "Criminal Justice": 0.58,
-    "Union Rights": 0.42,
-
-    # High Engagement (0.7 or above)
-    "Economy": 0.75,
-    "Voting Rights": 0.80,
-    "Climate Change": 0.75,
-    "Women Rights": 0.95,
-    "Job Growth": 0.70,
-    "Mental Health": 0.72,
-    "Drug Pricing": 0.74,
-    "Elder Care": 0.85,
-    "Infrastructure": 0.78,
-    "Civic Engagement": 0.90
-}
-
-topics_pool = define_topic_pools(topic_engagement_dict, low_threshold=0.3, high_threshold=0.7)
-
-# ---------------------------
-# Helper Functions for Simulation
+# Helper Functions
 # ---------------------------
 def softmax(z):
     e_x = np.exp(z - np.max(z))
@@ -91,7 +33,8 @@ def softmax(z):
 def initialize_user_state():
     gender = np.random.choice(["male", "female"])
     location = np.random.choice(["urban", "suburban", "rural"])
-    return {"gender": gender, "location": location, "engagement": 0.0}
+    latent_taste = np.random.randn(3)
+    return {"gender": gender, "location": location, "engagement": 0.0, "latent_taste": latent_taste}
 
 def sample_engagement_level(user_beta):
     alpha, beta_param = user_beta
@@ -122,10 +65,10 @@ def update_history(history, topics, email_outcomes):
     history.extend(email_outcomes)
     return history
 
-def update_user_state(state, topics, email_outcomes):
+def update_user_state(state, topics, email_outcomes, alpha=0.1):
     if email_outcomes:
         avg_outcome = np.mean(email_outcomes)
-        state["engagement"] = 0.5 * state["engagement"] + 0.5 * (avg_outcome / 5)
+        state["engagement"] = (1 - alpha) * state["engagement"] + alpha * (avg_outcome / 5)
     return state
 
 def update_engagement_level(rho, state, topics, email_outcomes):
@@ -136,7 +79,7 @@ def update_engagement_level(rho, state, topics, email_outcomes):
     else:
         return rho
 
-def update_topic_prior(prior, topics, email_outcomes):
+def update_topic_prior(prior, topics, email_outcomes, smoothing=0.2):
     updated = prior.copy()
     if email_outcomes:
         good = np.sum(np.array(email_outcomes) >= 3)
@@ -148,14 +91,52 @@ def update_topic_prior(prior, topics, email_outcomes):
     total = sum(updated.values())
     for t in updated:
         updated[t] /= total
-    return updated
+    uniform_prior = {t: 1/len(prior) for t in prior}
+    smoothed = {t: (1 - smoothing) * updated[t] + smoothing * uniform_prior[t] for t in updated}
+    total_smoothed = sum(smoothed.values())
+    for t in smoothed:
+        smoothed[t] /= total_smoothed
+    return smoothed
 
-def compute_policy(prior, gamma=1.0):
+def encode_demographics(state):
+    gender = state.get("gender", "male")
+    gender_onehot = [1, 0] if gender == "male" else [0, 1]
+    
+    location = state.get("location", "urban")
+    if location == "urban":
+        location_onehot = [1, 0, 0]
+    elif location == "suburban":
+        location_onehot = [0, 1, 0]
+    else:
+        location_onehot = [0, 0, 1]
+    
+    return np.array(gender_onehot + location_onehot)
+
+def state_feat(state):
+    engagement = np.array([state.get("engagement", 0.0)])
+    demographic_features = encode_demographics(state)
+    latent_taste = state.get("latent_taste", np.zeros(3))
+    return np.concatenate((engagement, demographic_features, latent_taste))
+
+def compute_policy(prior, state, gamma):
     topics = list(prior.keys())
     prior_probs = np.array([prior[t] for t in topics])
-    logits = np.log(prior_probs + 1e-8) * gamma
-    exp_logits = np.exp(logits)
+    
+    features = state_feat(state)
+    if np.isscalar(gamma):
+        gamma_cat = gamma * np.ones_like(features)
+    elif isinstance(gamma, dict):
+        cat = state.get("engagement_category", "low")
+        gamma_cat = gamma.get(cat, np.ones_like(features))
+    else:
+        gamma_cat = gamma
+        
+    gamma_effective = np.dot(gamma_cat, features)
+    
+    logits = np.log(prior_probs + 1e-8) * gamma_effective
+    exp_logits = np.exp(logits - np.max(logits))
     policy = exp_logits / exp_logits.sum()
+    
     return dict(zip(topics, policy))
 
 def compute_response_probs_deterministic(rho, p_low, p_high):
@@ -169,30 +150,48 @@ def compute_response_probs_stochastic(state, topics, topic_logit_params):
         response_dict[topic] = probs
     return response_dict
 
-# ---------------------------
-# Modified Simulation Function Using Engagement-Dependent Topic Pools
-# ---------------------------
-def simulation_cond(N, T, tau0, lambda_, k_min, k_max, version, topics_pool, thresholds=(0.3, 0.7)):
-    """
-    Run the simulation over N users and T time periods with engagement-dependent topic pools.
+def compute_policy_nn(policy_model, prior, state):
+    topics = sorted(prior.keys())
+    prior_vec = np.array([prior[t] for t in topics], dtype=np.float32)
+    engagement = np.array([state.get("engagement", 0.0)], dtype=np.float32)
+    demographics = encode_demographics(state).astype(np.float32)
+    input_vector = np.concatenate([prior_vec, engagement, demographics])
     
-    Parameters:
-        N: Number of users.
-        T: Total simulation time steps.
-        tau0: Baseline email interval.
-        lambda_: Scheduling sensitivity parameter.
-        k_min, k_max: Minimum and maximum topics per email.
-        version: 1 for deterministic, 2 for stochastic response function.
-        topics_pool: Dictionary mapping engagement level ("low", "mid", "high") to list of topics.
-        thresholds: Tuple to categorize engagement scores (e.g., (0.3, 0.7)).
-    """
+    required_dim = policy_model.fc1.in_features
+    if input_vector.shape[0] < required_dim:
+        pad_width = required_dim - input_vector.shape[0]
+        input_vector = np.concatenate([input_vector, np.zeros(pad_width, dtype=np.float32)])
+    elif input_vector.shape[0] > required_dim:
+        input_vector = input_vector[:required_dim]
+    
+    input_tensor = torch.from_numpy(input_vector).float().unsqueeze(0).to(device)
+    
+    with torch.no_grad():
+        policy_probs = policy_model(input_tensor).squeeze(0).cpu().numpy()
+    
+    policy_probs /= policy_probs.sum()
+    return dict(zip(topics, policy_probs))
+
+def email_scheduling_interval(tau0, lambda_, updated_engage_score, min_interval=1):
+    return max(min_interval, tau0 * np.exp(-lambda_ * updated_engage_score))
+
+# ---------------------------
+# Selective Topic Pools
+# ---------------------------
+def define_topic_pools_binary(topic_engagement_dict, threshold=0.3):
+    low_pool = [topic for topic, score in topic_engagement_dict.items() if score < threshold]
+    high_pool = [topic for topic, score in topic_engagement_dict.items() if score >= threshold]
+    return {"low": low_pool, "high": high_pool}
+
+topic_engagement_dict = 'YOUR_TOPIC_ENGAGEMENT_DICT'
+topics_pool = define_topic_pools_binary(topic_engagement_dict, threshold=0.3)
+
+# ---------------------------
+# Simulation Function
+# ---------------------------
+def simulation_nn_cond_bin(N, T, tau0, lambda_, k_min, k_max, version, topics_pool, 
+                            threshold=0.5, gamma=1.0, policy_update_interval=24, buffer=0.05):
     recorded_data = []
-    
-    states = {}
-    rhos = {}
-    next_send = {}
-    histories = {}
-    user_betas = {}
     
     priors = {}
     for n in range(N):
@@ -200,50 +199,57 @@ def simulation_cond(N, T, tau0, lambda_, k_min, k_max, version, topics_pool, thr
         for level, topic_list in topics_pool.items():
             priors[n][level] = {topic: 1 / len(topic_list) for topic in topic_list}
     
-    # For unknown response function, set logit parameters per engagement category.
     if version == 2:
-        np.random.seed(42)
         topic_logit_params = {}
         for level, topic_list in topics_pool.items():
             topic_logit_params[level] = {topic: np.random.randn(4) for topic in topic_list}
     
-    # Assign beta distribution parameters to each user.
+    states, rhos, next_send, histories, user_betas = {}, {}, {}, {}, {}
     num_beta = len(distributions)
     for n in range(N):
         states[n] = initialize_user_state()
-        _, _, alpha, beta_param = distributions[n % num_beta]
-        user_betas[n] = (alpha, beta_param)
+        _, _, alpha_val, beta_param = distributions[n % num_beta]
+        user_betas[n] = (alpha_val, beta_param)
         rhos[n] = sample_engagement_level(user_betas[n])
         next_send[n] = 0
         histories[n] = []
     
-    p_low = [0.45, 0.20, 0.15, 0.20]
+    last_policy = {}
+    last_cat = {}
+    for n in range(N):
+        state_n = states[n]
+        engagement = state_n["engagement"]
+        cat = "low" if engagement < threshold else "high"
+        last_cat[n] = cat
+        state_n["engagement_category"] = cat
+        current_prior = priors[n][cat]
+        last_policy[n] = compute_policy(current_prior, state_n, gamma)
+    
+    p_low = [0.30, 0.35, 0.15, 0.20]
     p_high = [0.30, 0.20, 0.25, 0.25]
     
-    # Simulation loop over time steps.
     for t in range(T + 1):
+        if t % policy_update_interval == 0:
+            engagements = np.array([states[n]["engagement"] for n in range(N)])
+            median_engagement = np.median(engagements)
+            for n in range(N):
+                new_cat = "low" if states[n]["engagement"] < median_engagement else "high"
+                last_cat[n] = new_cat
+                states[n]["engagement_category"] = new_cat
+                current_prior = priors[n][new_cat]
+                last_policy[n] = compute_policy(current_prior, states[n], gamma)
+            cat_counts = {"low": 0, "high": 0}
+            for n in range(N):
+                cat_counts[states[n]["engagement_category"]] += 1
+            print(f"Time {t}: Category counts: {cat_counts}")
+        
         for n in range(N):
             if t >= next_send[n]:
-                # 1) Get current engagement level
-                engage_score = states[n]["engagement"]
-                
-                # 2) Determine engagement category.
-                if engage_score < thresholds[0]:
-                    cat = "low"
-                elif engage_score < thresholds[1]:
-                    cat = "mid"
-                else:
-                    cat = "high"
-                
-                # 3) Use the current engagement category's prior and topic pool.
-                current_prior = priors[n][cat]
-                topic_dist = compute_policy(current_prior, gamma=1.0)
-                
-                # 4) Decide how many topics to send and sample from the current pool.
+                cat = last_cat[n]
+                topic_dist = last_policy[n]
                 k = determine_number_of_topics(k_min, k_max)
                 topics = sample_topics(topic_dist, k)
                 
-                # 5) Determine response probabilities and sample outcomes.
                 email_outcomes = []
                 response_probs_record = {}
                 if version == 1:
@@ -264,20 +270,17 @@ def simulation_cond(N, T, tau0, lambda_, k_min, k_max, version, topics_pool, thr
                 else:
                     email_outcomes = []
                 
-                # 6) Update user information.
                 histories[n] = update_history(histories[n], topics, email_outcomes)
-                states[n] = update_user_state(states[n], topics, email_outcomes)
+                states[n] = update_user_state(states[n], topics, email_outcomes, alpha=0.1)
                 updated_engage_score = compute_engage_score(histories[n])
                 rhos[n] = update_engagement_level(rhos[n], states[n], topics, email_outcomes)
                 
-                # 7) Update the prior for the current engagement category.
-                priors[n][cat] = update_topic_prior(current_prior, topics, email_outcomes)
+                current_prior = priors[n][cat]
+                priors[n][cat] = update_topic_prior(current_prior, topics, email_outcomes, smoothing=0.2)
                 
-                # 8) Schedule next send based on updated engagement.
-                delta_t = tau0 * np.exp(-lambda_ * updated_engage_score)
+                delta_t = email_scheduling_interval(tau0, lambda_, updated_engage_score, min_interval=1)
                 next_send[n] = t + delta_t
                 
-                # 9) Record simulation data.
                 record = {
                     "user": n,
                     "time": t,
@@ -286,7 +289,7 @@ def simulation_cond(N, T, tau0, lambda_, k_min, k_max, version, topics_pool, thr
                     "engage_score": updated_engage_score,
                     "state": states[n].copy(),
                     "engagement_category": cat,
-                    "prior": current_prior,
+                    "prior": priors[n][cat],
                     "topic_dist": topic_dist,
                     "topics": topics,
                     "response_probs": response_probs_record,
